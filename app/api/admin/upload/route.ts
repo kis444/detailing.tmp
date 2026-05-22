@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { writeFile, mkdir } from 'fs/promises';
-import path from 'path';
+import { supabase } from '@/lib/supabase';
 
 export async function POST(request: NextRequest) {
   try {
@@ -11,23 +10,28 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No file uploaded' }, { status: 400 });
     }
 
-    const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
-    
     const timestamp = Date.now();
-    // Înlocuiește spațiile și caracterele speciale din nume
-    const cleanName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
-    const filename = `${timestamp}-${cleanName}`;
-    const uploadDir = path.join(process.cwd(), 'public/uploads');
+    const filename = `${timestamp}-${file.name}`;
+    const buffer = Buffer.from(await file.arrayBuffer());
     
-    // Creează folderul dacă nu există
-    await mkdir(uploadDir, { recursive: true });
+    // Upload la Supabase Storage
+    const { data, error } = await supabase.storage
+      .from('gallery')
+      .upload(filename, buffer, {
+        contentType: file.type,
+        cacheControl: '3600',
+        upsert: false
+      });
     
-    const filepath = path.join(uploadDir, filename);
-    await writeFile(filepath, buffer);
+    if (error) {
+      console.error('Supabase storage error:', error);
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
     
-    const publicUrl = `/uploads/${filename}`;
-    console.log('File uploaded to:', publicUrl);
+    // Obține URL-ul public
+    const { data: { publicUrl } } = supabase.storage
+      .from('gallery')
+      .getPublicUrl(filename);
     
     return NextResponse.json({ url: publicUrl });
   } catch (error) {
