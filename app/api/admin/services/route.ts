@@ -3,23 +3,38 @@ import { supabase } from '@/lib/supabase';
 
 export async function GET() {
   try {
-    console.log('1. API called');
-    console.log('2. Supabase URL:', process.env.NEXT_PUBLIC_SUPABASE_URL ? 'Yes' : 'No');
-    
     const { data, error } = await supabase
       .from('services')
-      .select('*');
-    
-    console.log('3. Data:', data);
-    console.log('4. Error:', error);
+      .select('*')
+      .order('order', { ascending: true });
     
     if (error) {
-      return NextResponse.json({ error: error.message, details: error }, { status: 500 });
+      return NextResponse.json({ error: error.message }, { status: 500 });
     }
     
     return NextResponse.json(data || []);
   } catch (err) {
-    console.error('Catch error:', err);
-    return NextResponse.json({ error: 'Server error', details: String(err) }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to fetch services' }, { status: 500 });
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    const body = await request.json();
+    
+    const { data, error } = await supabase
+      .from('services')
+      .insert(body)
+      .select();
+    
+    if (error) {
+      console.error('Supabase insert error:', error);
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+    
+    return NextResponse.json(data?.[0] || { success: true });
+  } catch (error) {
+    console.error('POST error:', error);
+    return NextResponse.json({ error: 'Failed to create service' }, { status: 500 });
   }
 }

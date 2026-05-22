@@ -164,8 +164,7 @@ export default function ContactPage() {
             {/* Right Side - Map */}
             <div className="rounded-xl overflow-hidden bg-card border border-border sticky top-24 h-125 lg:h-137.5">
               <iframe
-                src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d21779.22931102361!2d28.81358665833337!3d47.01045174333533!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x40c97c3628b769a1%3A0x9c17a1b2b7c7e1fb!2sChi%C8%99in%C4%83u%2C%20Moldova!5e0!3m2!1sen!2s!4v1699999999999!5m2!1sen!2s"
-                width="100%"
+src="https://www.google.com/maps?q=Str.+Colina+Verde+26,+Chi%C8%99in%C4%83u,+Moldova&output=embed"                width="100%"
                 height="100%"
                 style={{ border: 0 }}
                 allowFullScreen
