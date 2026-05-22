@@ -56,3 +56,4 @@ supabase/.temp
 *.bak
 *.tmp
 .cache/
+pnpm-lock.yaml
