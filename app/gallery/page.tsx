@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Navbar } from "@/components/navbar";
 import { Footer } from "@/components/footer";
 import { useLanguage } from "@/components/language-provider";
@@ -22,6 +22,8 @@ export default function GalleryPage() {
   const [items, setItems] = useState<GalleryItem[]>([]);
   const [sliderPositions, setSliderPositions] = useState<Record<number, number>>({});
   const [loading, setLoading] = useState(true);
+  const [draggingId, setDraggingId] = useState<number | null>(null);
+  const containerRefs = useRef<Record<number, HTMLDivElement | null>>({});
 
   useEffect(() => {
     fetchItems();
@@ -32,7 +34,6 @@ export default function GalleryPage() {
       const res = await fetch("/api/admin/gallery");
       const data = await res.json();
       setItems(data);
-      // Inițializează pozițiile slider-ului la 50 pentru fiecare item
       const positions: Record<number, number> = {};
       data.forEach((item: GalleryItem) => {
         positions[item.id] = 50;
@@ -51,24 +52,53 @@ export default function GalleryPage() {
     return item.title_en;
   };
 
-  const handleSliderMove = (id: number, e: React.MouseEvent<HTMLDivElement>) => {
-    const container = e.currentTarget;
+  const handleMove = (id: number, clientX: number) => {
+    const container = containerRefs.current[id];
+    if (!container) return;
     const rect = container.getBoundingClientRect();
-
-    const handleMove = (moveEvent: MouseEvent) => {
-      const x = moveEvent.clientX - rect.left;
-      const percentage = Math.max(0, Math.min(100, (x / rect.width) * 100));
-      setSliderPositions((prev) => ({ ...prev, [id]: percentage }));
-    };
-
-    const handleUp = () => {
-      document.removeEventListener("mousemove", handleMove);
-      document.removeEventListener("mouseup", handleUp);
-    };
-
-    document.addEventListener("mousemove", handleMove);
-    document.addEventListener("mouseup", handleUp);
+    const x = Math.max(0, Math.min(clientX - rect.left, rect.width));
+    const percentage = (x / rect.width) * 100;
+    setSliderPositions((prev) => ({ ...prev, [id]: Math.min(Math.max(percentage, 0), 100) }));
   };
+
+  const onMouseDown = (id: number, e: React.MouseEvent) => {
+    e.preventDefault();
+    setDraggingId(id);
+    handleMove(id, e.clientX);
+  };
+
+  const onTouchStart = (id: number, e: React.TouchEvent) => {
+    e.preventDefault();
+    setDraggingId(id);
+    handleMove(id, e.touches[0].clientX);
+  };
+
+  useEffect(() => {
+    const handleGlobalMouseMove = (e: MouseEvent) => {
+      if (draggingId !== null) handleMove(draggingId, e.clientX);
+    };
+    const handleGlobalTouchMove = (e: TouchEvent) => {
+      if (draggingId !== null) {
+        e.preventDefault();
+        handleMove(draggingId, e.touches[0].clientX);
+      }
+    };
+    const handleEnd = () => setDraggingId(null);
+
+    if (draggingId !== null) {
+      window.addEventListener('mousemove', handleGlobalMouseMove);
+      window.addEventListener('mouseup', handleEnd);
+      window.addEventListener('touchmove', handleGlobalTouchMove, { passive: false });
+      window.addEventListener('touchend', handleEnd);
+    }
+
+    return () => {
+      window.removeEventListener('mousemove', handleGlobalMouseMove);
+      window.removeEventListener('mouseup', handleEnd);
+      window.removeEventListener('touchmove', handleGlobalTouchMove);
+      window.removeEventListener('touchend', handleEnd);
+    };
+  }, [draggingId]);
 
   if (loading) {
     return (
@@ -86,7 +116,6 @@ export default function GalleryPage() {
     <main className="min-h-screen">
       <Navbar />
       
-      {/* Hero Section */}
       <section className="pt-32 pb-16 bg-secondary">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h1 className="font-serif text-4xl sm:text-5xl lg:text-6xl font-bold text-foreground mb-4">
@@ -98,7 +127,6 @@ export default function GalleryPage() {
         </div>
       </section>
 
-      {/* Gallery Grid */}
       <section className="py-20 bg-background">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -108,12 +136,12 @@ export default function GalleryPage() {
                   {getTitle(item)}
                 </h3>
                 
-                {/* Before/After Slider */}
                 <div
-                  className="relative aspect-[16/10] rounded-xl overflow-hidden bg-muted cursor-ew-resize select-none"
-                  onMouseDown={(e) => handleSliderMove(item.id, e)}
+                  ref={(el) => { containerRefs.current[item.id] = el; }}
+                  className="relative aspect-[16/10] rounded-xl overflow-hidden bg-muted select-none touch-none"
+                  onMouseDown={(e) => onMouseDown(item.id, e)}
+                  onTouchStart={(e) => onTouchStart(item.id, e)}
                 >
-                  {/* After image (background complet) */}
                   <img
                     src={item.after_image}
                     alt="After"
@@ -121,7 +149,6 @@ export default function GalleryPage() {
                     draggable={false}
                   />
                   
-                  {/* Before image (decupată) */}
                   <div
                     className="absolute inset-0 overflow-hidden pointer-events-none"
                     style={{ width: `${sliderPositions[item.id] || 50}%` }}
@@ -135,9 +162,8 @@ export default function GalleryPage() {
                     />
                   </div>
 
-                  {/* Slider handle */}
                   <div
-                    className="absolute top-0 bottom-0 w-1 bg-white shadow-lg z-20 cursor-ew-resize pointer-events-auto"
+                    className="absolute top-0 bottom-0 w-1 bg-white shadow-lg z-20 pointer-events-none"
                     style={{ left: `${sliderPositions[item.id] || 50}%` }}
                   >
                     <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white shadow-lg flex items-center justify-center border-2 border-primary">
@@ -148,7 +174,6 @@ export default function GalleryPage() {
                     </div>
                   </div>
 
-                  {/* Labels */}
                   <div className="absolute bottom-4 left-4 px-3 py-1.5 bg-black/70 backdrop-blur-sm rounded-md text-sm font-medium text-white z-10 select-none pointer-events-none">
                     ÎNAINTE
                   </div>

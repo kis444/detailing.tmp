@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -25,6 +25,8 @@ export function GalleryPreview() {
   const [activeIndex, setActiveIndex] = useState(0);
   const [sliderPosition, setSliderPosition] = useState(50);
   const [loading, setLoading] = useState(true);
+  const [isDragging, setIsDragging] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     fetchItems();
@@ -34,7 +36,6 @@ export function GalleryPreview() {
     try {
       const res = await fetch("/api/admin/gallery");
       const data = await res.json();
-      // Arătăm doar primele 3 iteme
       const firstThree = data.slice(0, 3);
       setItems(firstThree);
     } catch (error) {
@@ -49,6 +50,73 @@ export function GalleryPreview() {
     if (language === "ru") return item.title_ru;
     return item.title_en;
   };
+
+  const handleStart = () => {
+    setIsDragging(true);
+  };
+
+  const handleMove = (clientX: number) => {
+    if (!isDragging || !containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const x = Math.max(0, Math.min(clientX - rect.left, rect.width));
+    const percentage = (x / rect.width) * 100;
+    setSliderPosition(Math.min(Math.max(percentage, 0), 100));
+  };
+
+  const handleEnd = () => {
+    setIsDragging(false);
+  };
+
+  const onMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    handleStart();
+    handleMove(e.clientX);
+  };
+
+  const onMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging) return;
+    handleMove(e.clientX);
+  };
+
+  const onTouchStart = (e: React.TouchEvent) => {
+    e.preventDefault();
+    handleStart();
+    handleMove(e.touches[0].clientX);
+  };
+
+  const onTouchMove = (e: React.TouchEvent) => {
+    if (!isDragging) return;
+    e.preventDefault();
+    handleMove(e.touches[0].clientX);
+  };
+
+  useEffect(() => {
+    const handleGlobalMouseUp = () => handleEnd();
+    const handleGlobalMouseMove = (e: MouseEvent) => {
+      if (!isDragging) return;
+      handleMove(e.clientX);
+    };
+    const handleGlobalTouchMove = (e: TouchEvent) => {
+      if (!isDragging) return;
+      e.preventDefault();
+      handleMove(e.touches[0].clientX);
+    };
+    const handleGlobalTouchEnd = () => handleEnd();
+
+    if (isDragging) {
+      window.addEventListener('mousemove', handleGlobalMouseMove);
+      window.addEventListener('mouseup', handleGlobalMouseUp);
+      window.addEventListener('touchmove', handleGlobalTouchMove, { passive: false });
+      window.addEventListener('touchend', handleGlobalTouchEnd);
+    }
+
+    return () => {
+      window.removeEventListener('mousemove', handleGlobalMouseMove);
+      window.removeEventListener('mouseup', handleGlobalMouseUp);
+      window.removeEventListener('touchmove', handleGlobalTouchMove);
+      window.removeEventListener('touchend', handleGlobalTouchEnd);
+    };
+  }, [isDragging]);
 
   if (loading) {
     return (
@@ -79,7 +147,15 @@ export function GalleryPreview() {
 
         <div className="grid lg:grid-cols-2 gap-8 lg:gap-12 items-center">
           <ScaleIn>
-<div className="relative aspect-[4/3] rounded-xl overflow-hidden bg-muted select-none">              <img
+            <div
+              ref={containerRef}
+              className="relative aspect-[4/3] rounded-xl overflow-hidden bg-muted select-none touch-none"
+              onMouseDown={onMouseDown}
+              onMouseMove={onMouseMove}
+              onTouchStart={onTouchStart}
+              onTouchMove={onTouchMove}
+            >
+              <img
                 src={activeItem.after_image}
                 alt="După"
                 className="absolute inset-0 w-full h-full object-cover pointer-events-none"
@@ -98,24 +174,8 @@ export function GalleryPreview() {
                 />
               </div>
               <div
-                className="absolute top-0 bottom-0 w-1 bg-white shadow-lg cursor-ew-resize z-10"
+                className="absolute top-0 bottom-0 w-1 bg-white shadow-lg z-10"
                 style={{ left: `${sliderPosition}%` }}
-                onMouseDown={(e) => {
-                  const container = e.currentTarget.parentElement;
-                  if (!container) return;
-                  const handleMove = (moveEvent: MouseEvent) => {
-                    const rect = container.getBoundingClientRect();
-                    const x = moveEvent.clientX - rect.left;
-                    const percentage = Math.max(0, Math.min(100, (x / rect.width) * 100));
-                    setSliderPosition(percentage);
-                  };
-                  const handleUp = () => {
-                    document.removeEventListener("mousemove", handleMove);
-                    document.removeEventListener("mouseup", handleUp);
-                  };
-                  document.addEventListener("mousemove", handleMove);
-                  document.addEventListener("mouseup", handleUp);
-                }}
               >
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white shadow-lg flex items-center justify-center border-2 border-primary cursor-ew-resize">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-primary">
